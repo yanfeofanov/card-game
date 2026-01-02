@@ -10,7 +10,7 @@ class CardModel {
   final int manaCost;
   final String imagePath;
 
-  CardModel({
+const CardModel({
     required this.id,
     required this.name,
     required this.description,
@@ -23,21 +23,21 @@ class CardModel {
     required this.imagePath,
   });
 
-  // Меняем цвет в зависимости от редкости карточки
-  int get rerityColor {
+  // Цвет карты в зависимости от редкости
+  int get rarityColor {
     switch (rarity) {
       case Rarity.common:
-        return 0xFF9E9E9E;
+        return 0xFF9E9E9E; // Серый
       case Rarity.rare:
-        return 0xFF2196F3;
+        return 0xFF2196F3; // Синий
       case Rarity.epic:
-        return 0xFF9C27B0;
+        return 0xFF9C27B0; // Фиолетовый
       case Rarity.legendary:
-        return 0xFFFF9800;
+        return 0xFFFF9800; // Оранжевый
     }
   }
 
-  // Меняем иконки в зависимости от типа карточки
+  // Иконка типа карты
   String get typeIcon {
     switch (type) {
       case CardType.warrior:
@@ -72,7 +72,7 @@ class CardModel {
       attack: json['attack'],
       health: json['health'],
       manaCost: json['mana_cost'] ?? 2,
-      imagePath: json['image_path'] ?? 'assets/card/default.png',
+      imagePath: json['image_path'] ?? 'assets/cards/default.png',
     );
   }
 }

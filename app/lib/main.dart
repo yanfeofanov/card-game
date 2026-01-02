@@ -1,11 +1,10 @@
+import 'package:card_game/screens/battle_screen.dart';
+import 'package:card_game/screens/collection_screen.dart';
+import 'package:card_game/screens/home_screen.dart';
+import 'package:card_game/screens/profile_screen.dart';
+import 'package:card_game/screens/shop_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-import 'screens/home_screen.dart';
-// import 'screens/collection_screen.dart';
-// import 'screens/battle_screen.dart';
-// import 'screens/shop_screen.dart';
-// import 'screens/profile_screen.dart';
 import 'models/game_state.dart';
 
 void main() {
@@ -51,10 +50,10 @@ class CardGameApp extends StatelessWidget {
       home: const HomeScreen(),
       debugShowCheckedModeBanner: false,
       routes: {
-        // '/collection': (context) => const CollectionScreen(),
-        // '/battle': (context) => const BattleScreen(),
-        // '/shop': (context) => const ShopScreen(),
-        // '/profile': (context) => const ProfileScreen(),
+        '/collection': (context) => const CollectionScreen(),
+        '/battle': (context) => const BattleScreen(),
+        '/shop': (context) => const ShopScreen(),
+        '/profile': (context) => const ProfileScreen(),
       },
     );
   }

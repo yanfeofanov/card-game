@@ -1,63 +1,10 @@
 import 'package:card_game/models/game_state.dart';
+import 'package:card_game/screens/collection_screen.dart'; // Импортируем настоящие экраны
+import 'package:card_game/screens/battle_screen.dart';
+import 'package:card_game/screens/shop_screen.dart';
+import 'package:card_game/screens/profile_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-// Временно создадим заглушки для экранов
-class CollectionScreen extends StatelessWidget {
-  const CollectionScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        'Коллекция',
-        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-}
-
-class BattleScreen extends StatelessWidget {
-  const BattleScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        'Арена',
-        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-}
-
-class ShopScreen extends StatelessWidget {
-  const ShopScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        'Магазин',
-        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-}
-
-class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        'Профиль',
-        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -69,7 +16,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  // Инициализируем список экранов с заглушками
+  // Инициализируем список настоящих экранов
   final List<Widget> _screens = [
     const CollectionScreen(),
     const BattleScreen(),
@@ -140,11 +87,13 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Text(icon),
           const SizedBox(width: 4),
-          Text(value,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ))
+          Text(
+            value,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
         ],
       ),
     );
