@@ -30,12 +30,18 @@ dependencies:
   
   # Для PostgreSQL (через Supabase)
   supabase_flutter: ^2.1.1
+  
+  # Для работы с .env файлами
+  flutter_dotenv: ^5.1.0
+  
+  # Логирование
+  logger: ^2.3.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.1
-  build_runner: ^2.4.6  # для code generation
+  build_runner: ^2.4.6 # для code generation
 
 flutter:
   uses-material-design: true
@@ -44,17 +50,16 @@ flutter:
     - assets/images/
     - assets/cards/
     - assets/icons/
+    - assets/.env  # Добавляем .env в ассеты
 
-# Android настройки - ЭТО ДОЛЖНО БЫТЬ ЗДЕСЬ (не внутри flutter)
+# Android настройки
 android:
   enable_jetifier: true
   namespace: com.example.card_game
-  
-  # Добавьте если нужны дополнительные разрешения
   permissions:
     - android.permission.INTERNET
 
-# iOS настройки - ЭТО ДОЛЖНО БЫТЬ ЗДЕСЬ (не внутри flutter)
+# iOS настройки
 ios:
   supports_full_screen: true
   deployment_target: '11.0'
@@ -62,3 +67,6 @@ ios:
     NSAppTransportSecurity:
       NSAllowsArbitraryLoads: true
     io.flutter.embedded_views_preview: true
+    CFBundleURLTypes:
+      - CFBundleURLSchemes:
+          - io.supabase.flutter

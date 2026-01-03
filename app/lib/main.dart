@@ -3,14 +3,27 @@ import 'package:card_game/screens/collection_screen.dart';
 import 'package:card_game/screens/home_screen.dart';
 import 'package:card_game/screens/profile_screen.dart';
 import 'package:card_game/screens/shop_screen.dart';
+import 'package:card_game/services/supabase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'models/game_state.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    // Инициализируем Supabase
+    await SupabaseService().initialize();
+  } catch (e) {
+    print('Failed to initialize Supabase: $e');
+  }
+
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => GameState(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (context) => GameState()),
+        Provider(create: (context) => SupabaseService()),
+      ],
       child: const CardGameApp(),
     ),
   );
