@@ -11,11 +11,15 @@ import 'models/game_state.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  print('🚀 Запускаем приложение...');
+
   try {
     // Инициализируем Supabase
+    print('🔧 Инициализируем Supabase...');
     await SupabaseService().initialize();
+    print('✅ Supabase инициализирован успешно!');
   } catch (e) {
-    print('Failed to initialize Supabase: $e');
+    print('❌ Ошибка инициализации Supabase: $e');
   }
 
   runApp(
