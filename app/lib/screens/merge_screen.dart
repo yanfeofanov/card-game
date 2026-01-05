@@ -301,7 +301,7 @@ class _MergeScreenState extends State<MergeScreen> {
                   children: [
                     Container(
                       width: 60,
-                      height: 90,
+                      height: 80,
                       child: CardWidget(
                         card: cardToShow,
                         showDetails: false,

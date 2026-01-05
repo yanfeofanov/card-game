@@ -63,19 +63,44 @@ class ProfileScreen extends StatelessWidget {
                       child: Column(
                         children: [
                           CircleAvatar(
-                            radius: 40, // Уменьшили радиус
+                            radius: 40,
                             backgroundColor: Colors.deepPurple.shade100,
-                            child: const Icon(
-                              Icons.person,
-                              size: 40, // Уменьшили размер иконки
-                              color: Colors.deepPurple,
+                            child: Stack(
+                              children: [
+                                const Icon(
+                                  Icons.person,
+                                  size: 40,
+                                  color: Colors.deepPurple,
+                                ),
+                                Positioned(
+                                  bottom: 0,
+                                  right: 0,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.yellow,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                          color: Colors.orange, width: 2),
+                                    ),
+                                    child: Text(
+                                      '${gameState.level}',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(height: 12),
                           Text(
                             gameState.playerName,
                             style: const TextStyle(
-                              fontSize: 20, // Уменьшили размер шрифта
+                              fontSize: 20,
                               fontWeight: FontWeight.bold,
                             ),
                             textAlign: TextAlign.center,
@@ -89,6 +114,7 @@ class ProfileScreen extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 16),
+
                           // Прогресс уровня
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -105,17 +131,28 @@ class ProfileScreen extends StatelessWidget {
                                     ),
                                   ),
                                   Text(
-                                    '${gameState.exp}/${gameState.level * 100}',
+                                    '${gameState.totalExp}/${gameState.expToNextLevel + gameState.totalExp}',
                                     style: const TextStyle(fontSize: 14),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 6),
                               LinearProgressIndicator(
-                                value: gameState.exp / (gameState.level * 100),
+                                value: gameState.levelProgress,
                                 backgroundColor: Colors.grey.shade200,
                                 color: Colors.deepPurple,
-                                minHeight: 6, // Уменьшили высоту
+                                minHeight: 6,
+                              ),
+                              const SizedBox(height: 4),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: Text(
+                                  '${(gameState.levelProgress * 100).toStringAsFixed(1)}%',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
                               ),
                             ],
                           ),

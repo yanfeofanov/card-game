@@ -1,6 +1,12 @@
+import 'package:card_game/main.dart';
 import 'package:card_game/models/card.dart';
+import 'package:card_game/models/game_state.dart';
 import 'package:card_game/models/pack_purchase.dart';
+import 'package:card_game/screens/battle_screen.dart';
+import 'package:card_game/services/battle_state_service.dart';
+import 'package:card_game/services/cache_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:logger/logger.dart';
 
@@ -8,6 +14,14 @@ class SupabaseService {
   static final SupabaseService _instance = SupabaseService._internal();
   factory SupabaseService() => _instance;
   SupabaseService._internal();
+  bool get isInitialized => _isInitialized;
+
+  SupabaseClient? get clientSafe {
+    if (!_isInitialized) {
+      return null;
+    }
+    return _client;
+  }
 
   static final Logger _logger = Logger();
   late SupabaseClient _client;
@@ -71,39 +85,30 @@ class SupabaseService {
 
   // Получить все карты
   Future<List<Map<String, dynamic>>> getAllCards() async {
+    if (!_isInitialized) {
+      print('⚠️ Supabase не инициализирован, возвращаем пустой список');
+      return [];
+    }
+
     try {
       _logger.d('🔍 Начинаю загрузку карт из Supabase...');
 
-      // Проверяем, инициализирован ли клиент
-      if (!_isInitialized) {
-        throw Exception('Supabase не инициализирован!');
-      }
-
-      _logger.d('✅ Клиент инициализирован, делаем запрос...');
-
-      // Делаем простой запрос для тестирования
-      final testQuery = await _client.from('cards').select('count').single();
+      final testQuery = await _client
+          .from('cards')
+          .select('count')
+          .single()
+          .timeout(const Duration(seconds: 10));
 
       _logger.d('📊 Количество карт в базе: $testQuery');
 
-      // Теперь получаем все карты
-      final response =
-          await _client.from('cards').select().order('id', ascending: true);
+      final response = await _client
+          .from('cards')
+          .select()
+          .order('id', ascending: true)
+          .timeout(const Duration(seconds: 15));
 
-      _logger.d('📦 Тип ответа: ${response.runtimeType}');
       _logger.d('📦 Длина ответа: ${response.length}');
 
-      if (response.isNotEmpty) {
-        _logger.d('📦 Первая карта в ответе:');
-        _logger.d('  ID: ${response[0]['id']}');
-        _logger.d('  Имя: ${response[0]['name']}');
-        _logger.d('  Тип: ${response[0]['type']}');
-        _logger.d('  Редкость: ${response[0]['rarity']}');
-      } else {
-        _logger.w('⚠️ Ответ пустой!');
-      }
-
-      // Преобразуем в правильный формат
       final List<Map<String, dynamic>> result = [];
       for (var item in response) {
         result.add(Map<String, dynamic>.from(item));
@@ -112,20 +117,9 @@ class SupabaseService {
       _logger.i('✅ Успешно загружено ${result.length} карт');
       return result;
     } catch (e, stack) {
-      _logger.e('❌ Ошибка при загрузке карт');
-      _logger.e('❌ Тип ошибки: ${e.runtimeType}');
-      _logger.e('❌ Сообщение: $e');
-      _logger.e('❌ Stack trace: $stack');
-
-      // Проверяем, может быть проблема с авторизацией
-      try {
-        final authState = _client.auth.currentSession;
-        _logger.d('🔐 Текущая сессия: $authState');
-      } catch (authError) {
-        _logger.e('🔐 Ошибка при проверке авторизации: $authError');
-      }
-
-      rethrow;
+      _logger.e('❌ Ошибка при загрузке карт: $e');
+      // Не пробрасываем ошибку, возвращаем пустой список
+      return [];
     }
   }
 
@@ -1038,74 +1032,378 @@ class SupabaseService {
     };
   }
 
+  Future<List<CardModel>> getUserCardsWithCache(int userId,
+      {bool forceRefresh = false}) async {
+    print('🔍 getUserCardsWithCache для пользователя: $userId');
+
+    final cacheService = CacheService();
+
+    // 1. Пробуем получить из кэша (если не принудительное обновление)
+    if (!forceRefresh) {
+      final cachedCards = await cacheService.getUserCards(userId);
+      if (cachedCards.isNotEmpty) {
+        print('🎯 Используем кэшированные карты: ${cachedCards.length} шт.');
+        return cachedCards;
+      }
+    }
+
+    // 2. Если в кэше нет, загружаем из базы
+    print('🔄 Загружаем карты из базы данных...');
+    final cards = await getUserCards(userId);
+
+    // 3. Сохраняем в кэш для будущего использования
+    if (cards.isNotEmpty) {
+      await cacheService.saveUserCards(userId, cards);
+    }
+
+    return cards;
+  }
+
+  Future<Map<String, dynamic>> getUserStats(int userId) async {
+    try {
+      _logger.d('📊 Получаем статистику пользователя: $userId');
+
+      final response =
+          await _client.from('users').select().eq('id', userId).single();
+
+      return response as Map<String, dynamic>;
+    } catch (e) {
+      _logger.e('❌ Ошибка получения статистики: $e');
+
+      // Если пользователя нет, создаем запись
+      if (e.toString().contains('не найдено') ||
+          e.toString().contains('not found')) {
+        return await _createUserStats(userId);
+      }
+
+      // Возвращаем значения по умолчанию
+      return {
+        'id': userId,
+        'level': 1,
+        'total_exp': 0,
+        'gold': 1000,
+        'gems': 50,
+        'created_at': DateTime.now().toIso8601String(),
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> _createUserStats(int userId) async {
+    try {
+      _logger.d('➕ Создаем статистику для пользователя: $userId');
+
+      final userData = {
+        'id': userId,
+        'level': 1,
+        'total_exp': 0,
+        'gold': 1000,
+        'gems': 50,
+        'created_at': DateTime.now().toIso8601String(),
+      };
+
+      final response =
+          await _client.from('users').insert(userData).select().single();
+
+      _logger.i('✅ Статистика создана для пользователя $userId');
+      return response as Map<String, dynamic>;
+    } catch (e) {
+      _logger.e('❌ Ошибка создания статистики: $e');
+      rethrow;
+    }
+  }
+
+// Обновить опыт пользователя
+  Future<void> updateUserExperience(int userId, int expGained) async {
+    try {
+      _logger.d('📈 Обновляем опыт пользователя $userId: +$expGained');
+
+      // Получаем текущие данные
+      final currentStats = await getUserStats(userId);
+      final currentLevel = currentStats['level'] as int;
+      final currentTotalExp = currentStats['total_exp'] as int;
+
+      // Рассчитываем новый опыт и уровень
+      int newTotalExp = currentTotalExp + expGained;
+      int newLevel = currentLevel;
+
+      // Формула для расчета необходимого опыта на уровень
+      int calculateExpForLevel(int level) {
+        if (level <= 1) return 0;
+        return 1000 * (1 << (level - 2)); // 1000 * 2^(level-2)
+      }
+
+      // Проверяем повышение уровня
+      while (newTotalExp >= calculateExpForLevel(newLevel + 1)) {
+        newLevel++;
+      }
+
+      // Обновляем в базе
+      await _client.from('users').update({
+        'total_exp': newTotalExp,
+        'level': newLevel,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', userId);
+
+      _logger.i('✅ Опыт обновлен: уровень $newLevel, опыт $newTotalExp');
+
+      // Также обновляем локальное состояние
+      final gameState =
+          Provider.of<GameState>(navigatorKey.currentContext!, listen: false);
+      gameState.setTotalExp(newTotalExp, newLevel);
+    } catch (e, stack) {
+      _logger.e('❌ Ошибка обновления опыта', error: e, stackTrace: stack);
+      rethrow;
+    }
+  }
+
+// Получить историю битв пользователя
+  Future<List<Map<String, dynamic>>> getBattleHistory(int userId) async {
+    try {
+      _logger.d('📜 Получаем историю битв пользователя: $userId');
+
+      final response = await _client
+          .from('battle_history')
+          .select()
+          .eq('user_id', userId)
+          .order('battle_date', ascending: false)
+          .limit(50);
+
+      return response as List<Map<String, dynamic>>;
+    } catch (e) {
+      _logger.e('❌ Ошибка получения истории битв: $e');
+      return [];
+    }
+  }
+
+// Сохранить результат битвы
+  Future<void> saveBattleResult({
+    required int userId,
+    required bool won,
+    required int expGained,
+    required int goldGained,
+    required List<int> playerCards,
+    required List<int> enemyCards,
+  }) async {
+    try {
+      _logger.d('💾 Сохраняем результат битвы для пользователя $userId');
+
+      final battleData = {
+        'user_id': userId,
+        'won': won,
+        'exp_gained': expGained,
+        'gold_gained': goldGained,
+        'player_cards': playerCards,
+        'enemy_cards': enemyCards,
+        'battle_date': DateTime.now().toIso8601String(),
+      };
+
+      await _client.from('battle_history').insert(battleData);
+
+      _logger.i('✅ Результат битвы сохранен');
+
+      // Также обновляем общий опыт пользователя
+      await updateUserExperience(userId, expGained);
+    } catch (e, stack) {
+      _logger.e('❌ Ошибка сохранения результата битвы',
+          error: e, stackTrace: stack);
+      // Не пробрасываем ошибку, чтобы не прерывать игру
+    }
+  }
+
+  Future<User?> signUp(String email, String password, String username) async {
+    try {
+      _logger.d('🔐 Регистрация пользователя: $username ($email)');
+
+      final response = await _client.auth.signUp(
+        email: email,
+        password: password,
+      );
+
+      if (response.user != null) {
+        // Создаем запись в таблице users
+        await _client.from('users').insert({
+          'id': response.user!.id,
+          'username': username,
+          'level': 1,
+          'total_exp': 0,
+          'gold': 1000,
+          'gems': 50,
+          'created_at': DateTime.now().toIso8601String(),
+        });
+
+        _logger.i('✅ Пользователь $username успешно зарегистрирован');
+        return response.user;
+      }
+
+      return null;
+    } catch (e, stack) {
+      _logger.e('❌ Ошибка регистрации', error: e, stackTrace: stack);
+      rethrow;
+    }
+  }
+
+  Future<User?> signIn(String email, String password) async {
+    try {
+      _logger.d('🔐 Вход пользователя: $email');
+
+      final response = await _client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      _logger.i('✅ Пользователь ${response.user?.email} вошел в систему');
+      return response.user;
+    } catch (e, stack) {
+      _logger.e('❌ Ошибка входа', error: e, stackTrace: stack);
+      rethrow;
+    }
+  }
+
+  Future<void> signOut() async {
+    try {
+      await _client.auth.signOut();
+      _logger.i('✅ Пользователь вышел из системы');
+    } catch (e, stack) {
+      _logger.e('❌ Ошибка выхода', error: e, stackTrace: stack);
+      rethrow;
+    }
+  }
+
+  User? get currentUser => _client.auth.currentUser;
+
+  Stream<AuthState> get authStateChanges => _client.auth.onAuthStateChange;
+// Метод для предзагрузки карт при входе в приложение
+  Future<void> preloadUserCards(int userId) async {
+    print('🚀 Предзагрузка карт пользователя...');
+
+    final cacheService = CacheService();
+    final hasCache = await cacheService.hasValidCache();
+
+    if (!hasCache) {
+      // Загружаем в фоне и кэшируем
+      Future.delayed(Duration.zero, () async {
+        try {
+          final cards = await getUserCards(userId);
+          if (cards.isNotEmpty) {
+            await cacheService.saveUserCards(userId, cards);
+            print('✅ Предзагрузка завершена: ${cards.length} карт');
+          }
+        } catch (e) {
+          print('⚠️ Ошибка предзагрузки: $e');
+        }
+      });
+    } else {
+      print('✅ Кэш уже актуален, предзагрузка не требуется');
+    }
+  }
+
+// Метод для очистки кэша при выходе из боя
+  Future<void> clearBattleCache(int userId) async {
+    // Очищаем только in-memory кэш, файловый оставляем для других экранов
+    CacheService().clearCache(userId);
+  }
+
 // Получить карты пользователя с учетом уровня
   Future<List<CardModel>> getUserCards(int userId) async {
+    print('🔍 getUserCards вызван для пользователя: $userId');
     try {
-      _logger.d('🃏 Fetching user cards for: $userId');
+      if (!_isInitialized) {
+        print('❌ Supabase не инициализирован!');
+        throw Exception('Supabase not initialized');
+      }
 
+      // Делаем запрос к базе данных
+      print('📡 Делаем запрос к базе данных...');
+
+      // ОГРАНИЧИВАЕМ количество полей в запросе
       final response = await _client.from('user_cards').select('''
-          id,
-          card_id,
-          type,
-          level,
-          rarity,
-          attack,
-          health,
-          count,
-          cards!inner(
-            id,
-            name,
-            description,
-            attack,
-            health,
-            mana_cost,
-            image_path
-          )
-        ''') // Убрали experience
-          .eq('user_id', userId);
+      id,
+      card_id,
+      type,
+      level,
+      rarity,
+      attack,
+      health,
+      count,
+      cards!inner(
+        id,
+        name,
+        rarity,
+        type,
+        attack,
+        health,
+        mana_cost,
+        image_path
+      )
+    ''').eq('user_id', userId).limit(50); // Ограничиваем количество
+
+      print('✅ Получен ответ от базы данных, записей: ${response.length}');
 
       final List<CardModel> allCards = [];
 
+      // Используем List.generate для более эффективного создания
       for (var item in response) {
-        final cardData = item['cards'] as Map<String, dynamic>;
-        final baseCard = CardModel.fromJson(cardData);
+        try {
+          final cardData = item['cards'] as Map<String, dynamic>;
+          final baseCard = CardModel.fromJson(cardData);
 
-        final cardTypeStr = item['type'] as String;
-        final level = item['level'] as int;
-        final count = item['count'] as int? ?? 1; // Важно: получаем count
-        final rarityStr = item['rarity'] as String;
-        final attack = item['attack'] as int? ?? baseCard.attack;
-        final health = item['health'] as int? ?? baseCard.health;
+          final cardTypeStr = item['type'] as String? ?? 'warrior';
+          final level = item['level'] as int? ?? 1;
+          final count = item['count'] as int? ?? 1;
+          final rarityStr = item['rarity'] as String? ?? 'common';
+          final attack = item['attack'] as int? ?? baseCard.attack;
+          final health = item['health'] as int? ?? baseCard.health;
 
-        // Преобразуем строки в enum
-        final CardType cardType = CardType.values.firstWhere(
-          (e) => e.toString().split('.').last == cardTypeStr,
-          orElse: () => CardType.warrior,
-        );
+          // Кэшируем преобразования enum
+          final cardType = _getCachedCardType(cardTypeStr);
+          final rarity = _getCachedRarity(rarityStr);
 
-        final Rarity rarity = Rarity.values.firstWhere(
-          (e) => e.toString().split('.').last == rarityStr,
-          orElse: () => Rarity.common,
-        );
+          // ОГРАНИЧИВАЕМ количество копий
+          final limitedCount =
+              count.clamp(1, 3); // Ограничиваем 3 копиями максимум
 
-        // Создаем копию карты для каждого экземпляра
-        for (int i = 0; i < count; i++) {
-          allCards.add(baseCard.copyWith(
-            level: level,
-            rarity: rarity,
-            type: cardType,
-            attack: attack,
-            health: health,
-          ));
+          for (int i = 0; i < limitedCount; i++) {
+            allCards.add(baseCard.copyWith(
+              level: level,
+              rarity: rarity,
+              type: cardType,
+              attack: attack,
+              health: health,
+            ));
+          }
+        } catch (e) {
+          print('⚠️ Ошибка обработки карты: $e');
+          continue;
         }
       }
 
-      _logger.i('✅ Found ${allCards.length} cards for user $userId');
+      print('🎉 Преобразовано карт: ${allCards.length}');
       return allCards;
     } catch (e, stack) {
-      _logger.e('❌ Error fetching user cards', error: e, stackTrace: stack);
-      rethrow;
+      print('❌ КРИТИЧЕСКАЯ ОШИБКА в getUserCards:');
+      print('❌ Тип: ${e.runtimeType}');
+      print('❌ Сообщение: $e');
+      print('❌ Stack trace: $stack');
+      return [];
     }
+  }
+
+// Добавляем кэширование enum преобразований
+  CardType _getCachedCardType(String typeStr) {
+    // Используем статический кэш
+    final _cardTypeCache = <String, CardType>{};
+    return _cardTypeCache[typeStr] ??= CardType.values.firstWhere(
+      (e) => e.toString().split('.').last == typeStr,
+      orElse: () => CardType.warrior,
+    );
+  }
+
+  Rarity _getCachedRarity(String rarityStr) {
+    final _rarityCache = <String, Rarity>{};
+    return _rarityCache[rarityStr] ??= Rarity.values.firstWhere(
+      (e) => e.toString().split('.').last == rarityStr,
+      orElse: () => Rarity.common,
+    );
   }
 
   // Получить карты, которые можно объединить
@@ -1207,6 +1505,21 @@ class SupabaseService {
     } catch (e, stack) {
       _logger.e('❌ Error getting mergeable cards', error: e, stackTrace: stack);
       return [];
+    }
+  }
+
+  // Обновить опыт карты
+  Future<void> updateCardExperience(int userCardId, int experience) async {
+    try {
+      await _client
+          .from('user_cards')
+          .update({'experience': experience}).eq('id', userCardId);
+
+      _logger.i('✅ Card experience updated: $experience');
+    } catch (e, stack) {
+      _logger.e('❌ Error updating card experience',
+          error: e, stackTrace: stack);
+      rethrow;
     }
   }
 }

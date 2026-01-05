@@ -1,16 +1,19 @@
+import 'dart:math';
+
 class CardModel {
   final int id;
   final String name;
   final String description;
   final Rarity rarity;
   final CardType type;
-  final int level;
-  final int attack;
-  final int health;
+  int level;
+  int attack;
+  int health;
   final int manaCost;
   final String imagePath;
+  int _experience;
 
-  const CardModel({
+  CardModel({
     required this.id,
     required this.name,
     required this.description,
@@ -21,7 +24,11 @@ class CardModel {
     required this.health,
     required this.manaCost,
     required this.imagePath,
-  });
+    int experience = 0,
+  }) : _experience = experience;
+
+  // Геттер для опыта (только для чтения)
+  int get experience => _experience;
 
   // Цвет карты в зависимости от редкости
   int get rarityColor {
@@ -176,6 +183,7 @@ class CardModel {
       health: json['health'],
       manaCost: json['mana_cost'] ?? 2,
       imagePath: json['image_path'] ?? 'assets/cards/default.png',
+      experience: json['experience'] ?? 0,
     );
   }
 
@@ -190,6 +198,7 @@ class CardModel {
     int? health,
     int? manaCost,
     String? imagePath,
+    int? experience,
   }) {
     return CardModel(
       id: id ?? this.id,
@@ -202,9 +211,11 @@ class CardModel {
       health: health ?? this.health,
       manaCost: manaCost ?? this.manaCost,
       imagePath: imagePath ?? this.imagePath,
+      experience: experience ?? _experience,
     );
   }
 
+  // Метод для получения следующего улучшенного типа
   CardType get nextUpgradedType {
     switch (type) {
       // Базовые -> Улучшенные
@@ -255,12 +266,168 @@ class CardModel {
     }
   }
 
-// Метод для определения уровня улучшения
+  // Метод для определения уровня улучшения (тира)
   int get upgradeTier {
     if (type.index <= CardType.support.index) return 1; // Базовые
     if (type.index <= CardType.priest.index) return 2; // Улучшенные
     if (type.index <= CardType.druid.index) return 3; // Эпические
     return 4; // Легендарные
+  }
+
+  // Метод для добавления опыта
+  void addExperience(int amount) {
+    _experience += amount;
+    _levelUpFromExperience();
+  }
+
+  // Приватный метод для повышения уровня на основе опыта
+  void _levelUpFromExperience() {
+    // Каждые 100 опыта повышаем уровень
+    while (_experience >= 100) {
+      level++;
+      _experience -= 100;
+
+      // Улучшаем характеристики в зависимости от редкости
+      double multiplier;
+      switch (rarity) {
+        case Rarity.common:
+          multiplier = 1.05; // +5% за уровень
+          break;
+        case Rarity.rare:
+          multiplier = 1.07; // +7% за уровень
+          break;
+        case Rarity.epic:
+          multiplier = 1.10; // +10% за уровень
+          break;
+        case Rarity.legendary:
+          multiplier = 1.15; // +15% за уровень
+          break;
+      }
+
+      // Улучшаем атаку и здоровье
+      attack = (attack * multiplier).round();
+      health = (health * multiplier).round();
+    }
+  }
+
+  // Метод для расчета текущего прогресса уровня (0-100%)
+  double get experienceProgress {
+    return _experience / 100.0;
+  }
+
+  // Метод для получения оставшегося опыта до следующего уровня
+  int get experienceToNextLevel {
+    return 100 - _experience;
+  }
+
+  // Метод для расчета общей силы карты (используется для балансировки)
+  int get totalPower {
+    return attack +
+        health +
+        (manaCost * 10) +
+        (level * 5) +
+        (rarity.index * 20);
+  }
+
+  // Метод для восстановления здоровья (можно использовать после боя)
+  void restoreHealth() {
+    // Восстанавливаем здоровье до максимального значения
+    // (здесь можно добавить логику расчета максимального здоровья)
+    // Пока просто оставим как есть
+  }
+
+  // Метод для проверки, жива ли карта
+  bool get isAlive {
+    return health > 0;
+  }
+
+  // Метод для получения процента здоровья
+  double get healthPercentage {
+    // Предполагаем, что текущее здоровье - это максимальное здоровье
+    // В реальной игре нужно хранить отдельно максимальное здоровье
+    return health / 100.0;
+  }
+
+  // Метод для получения строки с прогрессом уровня
+  String get levelProgressString {
+    return '$_experience/100 XP (${(experienceProgress * 100).toStringAsFixed(0)}%)';
+  }
+
+  // Метод для получения следующего уровня и характеристик
+  Map<String, dynamic> get nextLevelInfo {
+    double multiplier;
+    switch (rarity) {
+      case Rarity.common:
+        multiplier = 1.05;
+        break;
+      case Rarity.rare:
+        multiplier = 1.07;
+        break;
+      case Rarity.epic:
+        multiplier = 1.10;
+        break;
+      case Rarity.legendary:
+        multiplier = 1.15;
+        break;
+    }
+
+    return {
+      'nextLevel': level + 1,
+      'nextAttack': (attack * multiplier).round(),
+      'nextHealth': (health * multiplier).round(),
+      'experienceNeeded': experienceToNextLevel,
+    };
+  }
+
+  // Метод для сериализации в JSON (для сохранения в базу данных)
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'rarity': rarity.toString().split('.').last,
+      'type': type.toString().split('.').last,
+      'level': level,
+      'attack': attack,
+      'health': health,
+      'mana_cost': manaCost,
+      'image_path': imagePath,
+      'experience': _experience,
+    };
+  }
+
+  // Статический метод для создания карты NPC
+  static CardModel createNPCCard({
+    required int id,
+    required String name,
+    required int basePower,
+    Random? random,
+  }) {
+    final rng = random ?? Random();
+    final cardTypes = CardType.values;
+    final rarities = Rarity.values;
+
+    // NPC карты обычно имеют обычную редкость
+    final rarity = Rarity.common;
+
+    // Базовые характеристики основаны на силе
+    final attack = (basePower * 0.6).round() + rng.nextInt(5);
+    final health = (basePower * 0.8).round() + rng.nextInt(10);
+    final level = rng.nextInt(3) + 1;
+
+    return CardModel(
+      id: id,
+      name: name,
+      description: 'Противник',
+      rarity: rarity,
+      type: cardTypes[rng.nextInt(cardTypes.length)],
+      level: level,
+      attack: attack,
+      health: health,
+      manaCost: 2,
+      imagePath: 'assets/cards/enemy.png',
+      experience: 0,
+    );
   }
 }
 

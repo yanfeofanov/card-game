@@ -5,8 +5,10 @@ import 'package:card_game/screens/merge_screen.dart';
 import 'package:card_game/screens/shop_screen.dart';
 import 'package:card_game/screens/profile_screen.dart';
 import 'package:card_game/screens/user_collection_screen.dart';
+import 'package:card_game/services/supabase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'battle_preparation_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,11 +21,11 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
   // Инициализируем список настоящих экранов
-  final List<Widget> _screens = [
-    const CollectionScreen(),
-    const BattleScreen(),
-    const ShopScreen(),
-    const ProfileScreen(),
+  final List<Widget> _screens = const [
+    CollectionScreen(),
+    BattlePreparationScreen(), // Заменяем BattleScreen
+    ShopScreen(),
+    ProfileScreen(),
   ];
 
   void _onItemTapped(int index) {
@@ -33,14 +35,58 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+
+    // Предзагрузка данных при запуске
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _preloadData();
+    });
+  }
+
+  void _preloadData() {
+    final context = this.context;
+    final gameState = Provider.of<GameState>(context, listen: false);
+    final supabaseService =
+        Provider.of<SupabaseService>(context, listen: false);
+
+    // Предзагрузка карт в фоне
+    supabaseService.preloadUserCards(gameState.userId);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final gameState = context.watch<GameState>();
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Strange Battle'),
         actions: [
-          // Кнопка для перехода в коллекцию пользователя
+          // Индикатор уровня
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.deepPurple.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.deepPurple),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.star, size: 16, color: Colors.yellow),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Ур. ${gameState.level}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: () {
@@ -53,6 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
             },
             tooltip: 'Мои карты',
           ),
+
           IconButton(
             icon: const Icon(Icons.merge),
             onPressed: () {
@@ -65,13 +112,13 @@ class _HomeScreenState extends State<HomeScreen> {
             },
             tooltip: 'Объединение карт',
           ),
+
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                _buildResourceItem('💰', '${gameState.gold}'),
+                _buildResourceItem(context, '💰', '${gameState.gold}'),
                 const SizedBox(width: 12),
-                _buildResourceItem('💎', '${gameState.gems}'),
               ],
             ),
           )
@@ -106,22 +153,24 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildResourceItem(String icon, String value) {
+  Widget _buildResourceItem(BuildContext context, String icon, String value) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
+        color: Theme.of(context).colorScheme.surfaceVariant,
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(icon),
-          const SizedBox(width: 4),
+          Text(icon, style: const TextStyle(fontSize: 12)),
+          const SizedBox(width: 2),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.bold,
-              fontSize: 16,
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ],

@@ -16,14 +16,20 @@ class _UserCollectionScreenState extends State<UserCollectionScreen> {
   List<CardModel> _userCards = [];
   bool _isLoading = true;
   String? _error;
+  bool _isPerformingRequest = false;
 
   @override
   void initState() {
     super.initState();
+    Future.delayed(const Duration(milliseconds: 100), _loadUserCards);
     _loadUserCards();
   }
 
   Future<void> _loadUserCards() async {
+    if (_isPerformingRequest) return;
+
+    _isPerformingRequest = true;
+
     try {
       setState(() {
         _isLoading = true;
@@ -32,7 +38,10 @@ class _UserCollectionScreenState extends State<UserCollectionScreen> {
       final supabaseService =
           Provider.of<SupabaseService>(context, listen: false);
       final gameState = context.read<GameState>();
-      final cards = await supabaseService.getUserCards(gameState.userId);
+
+      // Используем кэшированную версию
+      final cards =
+          await supabaseService.getUserCardsWithCache(gameState.userId);
 
       if (mounted) {
         setState(() {
@@ -51,6 +60,8 @@ class _UserCollectionScreenState extends State<UserCollectionScreen> {
           _isLoading = false;
         });
       }
+    } finally {
+      _isPerformingRequest = false;
     }
   }
 
